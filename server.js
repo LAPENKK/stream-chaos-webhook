@@ -28,7 +28,7 @@ app.get("/", (req, res) => {
 });
 
 // ===============================
-// DIAGNÓSTICO DE CREDENCIALES
+// PRUEBA DE CREDENCIALES
 // ===============================
 
 app.get("/test-kick", async (req, res) => {
@@ -42,16 +42,6 @@ app.get("/test-kick", async (req, res) => {
         const clientSecretExists =
             typeof CLIENT_SECRET === "string" &&
             CLIENT_SECRET.length > 0;
-
-        console.log(
-            "KICK CLIENT ID EXISTS:",
-            clientIdExists
-        );
-
-        console.log(
-            "KICK CLIENT SECRET EXISTS:",
-            clientSecretExists
-        );
 
         if (!clientIdExists || !clientSecretExists) {
 
@@ -83,11 +73,6 @@ app.get("/test-kick", async (req, res) => {
 
         const data = await response.json();
 
-        console.log(
-            "KICK TEST STATUS:",
-            response.status
-        );
-
         if (!response.ok) {
 
             return res.status(response.status).json({
@@ -106,7 +91,7 @@ app.get("/test-kick", async (req, res) => {
     } catch (error) {
 
         console.error(
-            "KICK TEST INTERNAL ERROR:",
+            "KICK TEST ERROR:",
             error
         );
 
@@ -162,7 +147,8 @@ app.get("/oauth/start", (req, res) => {
 
 app.get("/oauth/callback", async (req, res) => {
 
-    const { code, state } = req.query;
+    const code = req.query.code;
+    const state = req.query.state;
 
     if (!code) {
 
@@ -277,7 +263,7 @@ app.get("/test-token", async (req, res) => {
 
                 headers: {
                     "Authorization":
-                        Bearer ${accessToken},
+                        "Bearer " + accessToken,
                     "Accept": "application/json"
                 }
             }
@@ -305,7 +291,7 @@ app.get("/test-token", async (req, res) => {
     } catch (error) {
 
         console.error(
-            "Token test error:",
+            "TOKEN TEST ERROR:",
             error
         );
 
