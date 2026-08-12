@@ -241,6 +241,75 @@ app.get("/oauth/callback", async (req, res) => {
 });
 
 // ===============================
+// INFORMACIÓN DEL USUARIO KICK
+// ===============================
+
+app.get("/test-user", async (req, res) => {
+
+    if (!accessToken) {
+
+        return res.status(401).json({
+            success: false,
+            message: "No Kick access token available"
+        });
+    }
+
+    try {
+
+        const response = await fetch(
+            "https://api.kick.com/public/v1/user",
+            {
+                method: "GET",
+
+                headers: {
+                    "Authorization":
+                        "Bearer " + accessToken,
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        console.log(
+            "KICK USER RESPONSE:"
+        );
+
+        console.log(
+            JSON.stringify(
+                data,
+                null,
+                2
+            )
+        );
+
+        if (!response.ok) {
+
+            return res
+                .status(response.status)
+                .json(data);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: data
+        });
+
+    } catch (error) {
+
+        console.error(
+            "USER TEST ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "User test error"
+        });
+    }
+});
+
+// ===============================
 // PRUEBA DEL ACCESS TOKEN
 // ===============================
 
