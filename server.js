@@ -257,7 +257,7 @@ app.get("/test-user", async (req, res) => {
     try {
 
         const response = await fetch(
-            "https://api.kick.com/public/v1/user",
+            "https://api.kick.com/public/v1/users",
             {
                 method: "GET",
 
@@ -407,6 +407,5 @@ app.listen(
             "Webhook server running on port " +
             PORT
         );
-
     }
 );
