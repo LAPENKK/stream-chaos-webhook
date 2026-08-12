@@ -13,6 +13,10 @@ const CLIENT_SECRET = process.env.KICK_CLIENT_SECRET;
 const REDIRECT_URI =
     "https://stream-chaos-webhook.onrender.com/oauth/callback";
 
+// Token obtenido después del OAuth
+let accessToken = null;
+
+// Datos temporales de OAuth
 let oauthState = null;
 let codeVerifier = null;
 
@@ -24,102 +28,6 @@ app.get("/", (req, res) => {
     res.status(200).send(
         "STREAM CHAOS ENGINE - WEBHOOK ONLINE"
     );
-});
-
-// ===============================
-// DIAGNÓSTICO DE CREDENCIALES
-// ===============================
-
-app.get("/test-kick", async (req, res) => {
-
-    try {
-
-        const clientIdExists =
-            typeof CLIENT_ID === "string" &&
-            CLIENT_ID.length > 0;
-
-        const clientSecretExists =
-            typeof CLIENT_SECRET === "string" &&
-            CLIENT_SECRET.length > 0;
-
-        console.log("KICK CLIENT ID EXISTS:", clientIdExists);
-        console.log(
-            "KICK CLIENT SECRET EXISTS:",
-            clientSecretExists
-        );
-
-        if (!clientIdExists || !clientSecretExists) {
-
-            return res.status(500).json({
-                success: false,
-                client_id_exists: clientIdExists,
-                client_secret_exists: clientSecretExists
-            });
-        }
-
-        const response = await fetch(
-            "https://id.kick.com/oauth/token",
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type":
-                        "application/x-www-form-urlencoded",
-                    "Accept": "application/json"
-                },
-
-                body: new URLSearchParams({
-                    client_id: CLIENT_ID,
-                    client_secret: CLIENT_SECRET,
-                    grant_type: "client_credentials"
-                }).toString()
-            }
-        );
-
-        const data = await response.json();
-
-        console.log(
-            "KICK TEST STATUS:",
-            response.status
-        );
-
-        console.log(
-            "KICK TEST ERROR:",
-            data.error || "none"
-        );
-
-        console.log(
-            "KICK TEST DESCRIPTION:",
-            data.error_description || "none"
-        );
-
-        if (!response.ok) {
-
-            return res.status(response.status).json({
-                success: false,
-                kick_error: data.error || null,
-                kick_error_description:
-                    data.error_description || null
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: "KICK CREDENTIALS ACCEPTED"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "KICK TEST INTERNAL ERROR:",
-            error
-        );
-
-        return res.status(500).json({
-            success: false,
-            error: "Internal server error"
-        });
-    }
 });
 
 // ===============================
@@ -210,7 +118,15 @@ app.get("/oauth/callback", async (req, res) => {
         );
 
         console.log(
-            JSON.stringify(data, null, 2)
+            JSON.stringify(
+                {
+                    token_type: data.token_type,
+                    expires_in: data.expires_in,
+                    scope: data.scope
+                },
+                null,
+                2
+            )
         );
 
         if (!response.ok) {
@@ -219,6 +135,13 @@ app.get("/oauth/callback", async (req, res) => {
                 .status(response.status)
                 .json(data);
         }
+
+        // Guardamos el token en memoria
+        accessToken = data.access_token;
+
+        console.log(
+            "KICK ACCESS TOKEN RECIBIDO CORRECTAMENTE"
+        );
 
         res.status(200).send(
             "STREAM CHAOS ENGINE - KICK AUTORIZADO CORRECTAMENTE"
@@ -234,6 +157,68 @@ app.get("/oauth/callback", async (req, res) => {
         res.status(500).send(
             "OAuth error"
         );
+    }
+});
+
+// ===============================
+// PRUEBA DEL TOKEN
+// ===============================
+
+app.get("/test-token", async (req, res) => {
+
+    if (!accessToken) {
+
+        return res.status(401).json({
+            success: false,
+            message: "No Kick access token available"
+        });
+    }
+
+    try {
+
+        const response = await fetch(
+            "https://api.kick.com/public/v1/users",
+            {
+                method: "GET",
+
+                headers: {
+                    "Authorization":
+                        Bearer ${accessToken},
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        console.log(
+            "KICK API TEST STATUS:",
+            response.status
+        );
+
+        if (!response.ok) {
+
+            return res
+                .status(response.status)
+                .json(data);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: "KICK ACCESS TOKEN FUNCIONA"
+        });
+
+    } catch (error) {
+
+        console.error(
+            "Token test error:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "Token test error"
+        });
     }
 });
 
