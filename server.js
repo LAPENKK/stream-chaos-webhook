@@ -6,21 +6,50 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
+const CLIENT_ID = process.env.KICK_CLIENT_ID;
+const CLIENT_SECRET = process.env.KICK_CLIENT_SECRET;
+const REDIRECT_URI = "https://stream-chaos-webhook.onrender.com/oauth/callback";
+
 app.get("/", (req, res) => {
     res.status(200).send("STREAM CHAOS ENGINE - WEBHOOK ONLINE");
 });
 
-app.get("/oauth/callback", (req, res) => {
+app.get("/oauth/callback", async (req, res) => {
     const code = req.query.code;
 
     if (!code) {
         return res.status(400).send("No authorization code received");
     }
 
-    console.log("OAUTH CODE RECIBIDO");
-    console.log(code);
+    try {
+        const response = await fetch("https://id.kick.com/oauth/token", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({
+                grant_type: "authorization_code",
+                client_id: CLIENT_ID,
+                client_secret: CLIENT_SECRET,
+                redirect_uri: REDIRECT_URI,
+                code: code
+            })
+        });
 
-    res.status(200).send("Stream Chaos Engine: autorización recibida correctamente.");
+        const data = await response.json();
+
+        console.log("OAUTH TOKEN RESPONSE:");
+        console.log(JSON.stringify(data, null, 2));
+
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        res.status(200).send("Stream Chaos Engine: autorización completada correctamente.");
+    } catch (error) {
+        console.error("OAuth error:", error);
+        res.status(500).send("OAuth error");
+    }
 });
 
 app.post("/webhook", (req, res) => {
