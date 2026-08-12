@@ -13,15 +13,15 @@ const CLIENT_SECRET = process.env.KICK_CLIENT_SECRET;
 const REDIRECT_URI =
     "https://stream-chaos-webhook.onrender.com/oauth/callback";
 
-// Guardamos temporalmente el estado y el verifier del proceso OAuth
 let oauthState = null;
 let codeVerifier = null;
 
+// Página principal
 app.get("/", (req, res) => {
     res.status(200).send("STREAM CHAOS ENGINE - WEBHOOK ONLINE");
 });
 
-// INICIAR OAUTH
+// Iniciar OAuth con Kick
 app.get("/oauth/start", (req, res) => {
 
     oauthState = crypto.randomBytes(32).toString("hex");
@@ -51,7 +51,7 @@ app.get("/oauth/start", (req, res) => {
     res.redirect(authorizationUrl);
 });
 
-// CALLBACK OAUTH
+// Callback de OAuth
 app.get("/oauth/callback", async (req, res) => {
 
     const { code, state } = req.query;
@@ -66,22 +66,27 @@ app.get("/oauth/callback", async (req, res) => {
 
     try {
 
-        const response = await fetch("https://id.kick.com/oauth/token", {
-            method: "POST",
+        const response = await fetch(
+            "https://id.kick.com/oauth/token",
+            {
+                method: "POST",
 
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
+                headers: {
+                    "Content-Type":
+                        "application/x-www-form-urlencoded",
+                    "Accept": "application/json"
+                },
 
-            body: new URLSearchParams({
-                grant_type: "authorization_code",
-                client_id: CLIENT_ID,
-                client_secret: CLIENT_SECRET,
-                redirect_uri: REDIRECT_URI,
-                code: code,
-                code_verifier: codeVerifier
-            })
-        });
+                body: new URLSearchParams({
+                    code: code,
+                    client_id: CLIENT_ID,
+                    client_secret: CLIENT_SECRET,
+                    redirect_uri: REDIRECT_URI,
+                    grant_type: "authorization_code",
+                    code_verifier: codeVerifier
+                }).toString()
+            }
+        );
 
         const data = await response.json();
 
@@ -104,7 +109,7 @@ app.get("/oauth/callback", async (req, res) => {
     }
 });
 
-// WEBHOOK
+// Webhook
 app.post("/webhook", (req, res) => {
 
     console.log("WEBHOOK RECIBIDO:");
@@ -118,6 +123,7 @@ app.post("/webhook", (req, res) => {
     });
 });
 
+// Servidor
 app.listen(PORT, "0.0.0.0", () => {
 
     console.log(
