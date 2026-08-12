@@ -13,9 +13,13 @@ const CLIENT_SECRET = process.env.KICK_CLIENT_SECRET;
 const REDIRECT_URI =
     "https://stream-chaos-webhook.onrender.com/oauth/callback";
 
+const WEBHOOK_URL =
+    "https://stream-chaos-webhook.onrender.com/webhook";
+
 let accessToken = null;
 let oauthState = null;
 let codeVerifier = null;
+let broadcasterUserId = null;
 
 // ===============================
 // PÁGINA PRINCIPAL
@@ -25,81 +29,6 @@ app.get("/", (req, res) => {
     res.status(200).send(
         "STREAM CHAOS ENGINE - WEBHOOK ONLINE"
     );
-});
-
-// ===============================
-// PRUEBA DE CREDENCIALES
-// ===============================
-
-app.get("/test-kick", async (req, res) => {
-
-    try {
-
-        const clientIdExists =
-            typeof CLIENT_ID === "string" &&
-            CLIENT_ID.length > 0;
-
-        const clientSecretExists =
-            typeof CLIENT_SECRET === "string" &&
-            CLIENT_SECRET.length > 0;
-
-        if (!clientIdExists || !clientSecretExists) {
-
-            return res.status(500).json({
-                success: false,
-                client_id_exists: clientIdExists,
-                client_secret_exists: clientSecretExists
-            });
-        }
-
-        const response = await fetch(
-            "https://id.kick.com/oauth/token",
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type":
-                        "application/x-www-form-urlencoded",
-                    "Accept": "application/json"
-                },
-
-                body: new URLSearchParams({
-                    client_id: CLIENT_ID,
-                    client_secret: CLIENT_SECRET,
-                    grant_type: "client_credentials"
-                }).toString()
-            }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-
-            return res.status(response.status).json({
-                success: false,
-                kick_error: data.error || null,
-                kick_error_description:
-                    data.error_description || null
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: "KICK CREDENTIALS ACCEPTED"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "KICK TEST ERROR:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            error: "Internal server error"
-        });
-    }
 });
 
 // ===============================
@@ -134,9 +63,7 @@ app.get("/oauth/start", (req, res) => {
         "https://id.kick.com/oauth/authorize?" +
         params.toString();
 
-    console.log(
-        "Iniciando OAuth de Kick..."
-    );
+    console.log("Iniciando OAuth de Kick...");
 
     res.redirect(authorizationUrl);
 });
@@ -151,14 +78,12 @@ app.get("/oauth/callback", async (req, res) => {
     const state = req.query.state;
 
     if (!code) {
-
         return res.status(400).send(
             "No authorization code received"
         );
     }
 
     if (!state || state !== oauthState) {
-
         return res.status(400).send(
             "Invalid OAuth state"
         );
@@ -190,37 +115,63 @@ app.get("/oauth/callback", async (req, res) => {
 
         const data = await response.json();
 
-        console.log(
-            "OAUTH TOKEN RESPONSE:"
-        );
-
-        console.log(
-            JSON.stringify(
-                {
-                    token_type: data.token_type,
-                    expires_in: data.expires_in,
-                    scope: data.scope,
-                    error: data.error,
-                    error_description:
-                        data.error_description
-                },
-                null,
-                2
-            )
-        );
+        console.log("OAUTH TOKEN RESPONSE:");
+        console.log(JSON.stringify({
+            token_type: data.token_type,
+            expires_in: data.expires_in,
+            scope: data.scope,
+            error: data.error,
+            error_description: data.error_description
+        }, null, 2));
 
         if (!response.ok) {
-
-            return res
-                .status(response.status)
-                .json(data);
+            return res.status(response.status).json(data);
         }
 
-        accessToken =
-            data.access_token;
+        accessToken = data.access_token;
 
         console.log(
             "KICK ACCESS TOKEN RECIBIDO CORRECTAMENTE"
+        );
+
+        // Obtener información del usuario
+        const userResponse = await fetch(
+            "https://api.kick.com/public/v1/users",
+            {
+                method: "GET",
+                headers: {
+                    "Authorization":
+                        "Bearer " + accessToken,
+                    "Accept": "application/json"
+                }
+            }
+        );
+
+        const userData = await userResponse.json();
+
+        console.log("KICK USER RESPONSE:");
+        console.log(
+            JSON.stringify(userData, null, 2)
+        );
+
+        if (!userResponse.ok) {
+            return res.status(userResponse.status).json(
+                userData
+            );
+        }
+
+        if (
+            userData.data &&
+            userData.data.data &&
+            userData.data.data.length > 0
+        ) {
+            broadcasterUserId =
+                userData.data.data[0].user_id;
+        }
+
+        console.log(
+            "BROADCASTER USER ID:",
+            broadcasterUserId
         );
 
         res.status(200).send(
@@ -241,13 +192,12 @@ app.get("/oauth/callback", async (req, res) => {
 });
 
 // ===============================
-// INFORMACIÓN DEL USUARIO KICK
+// INFORMACIÓN DEL USUARIO
 // ===============================
 
 app.get("/test-user", async (req, res) => {
 
     if (!accessToken) {
-
         return res.status(401).json({
             success: false,
             message: "No Kick access token available"
@@ -271,8 +221,162 @@ app.get("/test-user", async (req, res) => {
 
         const data = await response.json();
 
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: data
+        });
+
+    } catch (error) {
+
+        console.error(
+            "USER TEST ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: "User test error"
+        });
+    }
+});
+
+// ===============================
+// SUSCRIBIRSE A CHAT.MESSAGE.SENT
+// ===============================
+
+app.get("/subscribe-chat", async (req, res) => {
+
+    if (!accessToken) {
+        return res.status(401).json({
+            success: false,
+            message: "No Kick access token available"
+        });
+    }
+
+    if (!broadcasterUserId) {
+        return res.status(400).json({
+            success: false,
+            message: "Broadcaster user ID not available"
+        });
+    }
+
+    try {
+
+        const response = await fetch(
+            "https://api.kick.com/public/v1/events/subscriptions",
+            {
+                method: "POST",
+
+                headers: {
+                    "Authorization":
+                        "Bearer " + accessToken,
+
+                    "Content-Type":
+                        "application/json",
+
+                    "Accept":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    broadcaster_user_id:
+                        broadcasterUserId,
+
+                    events: [
+                        {
+                            name:
+                                "chat.message.sent",
+                            version: 1
+                        }
+                    ],
+
+                    method: "webhook"
+                })
+            }
+        );
+
+        const data = await response.json();
+
         console.log(
-            "KICK USER RESPONSE:"
+            "KICK SUBSCRIPTION RESPONSE:"
+        );
+
+        console.log(
+            JSON.stringify(
+                data,
+                null,
+                2
+            )
+        );
+
+        if (!response.ok) {
+
+            return res
+                .status(response.status)
+                .json(data);
+        }
+
+        res.status(200).json({
+            success: true,
+            message:
+                "CHAT EVENT SUBSCRIPTION REQUEST SENT",
+            data: data
+        });
+
+    } catch (error) {
+
+        console.error(
+            "SUBSCRIPTION ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message:
+                "Subscription error"
+        });
+    }
+});
+
+// ===============================
+// VERIFICAR SUSCRIPCIONES
+// ===============================
+
+app.get("/subscriptions", async (req, res) => {
+
+    if (!accessToken) {
+        return res.status(401).json({
+            success: false,
+            message:
+                "No Kick access token available"
+        });
+    }
+
+    try {
+
+        const response = await fetch(
+            "https://api.kick.com/public/v1/events/subscriptions",
+            {
+                method: "GET",
+
+                headers: {
+                    "Authorization":
+                        "Bearer " + accessToken,
+
+                    "Accept":
+                        "application/json"
+                }
+            }
+        );
+
+        const data = await response.json();
+
+        console.log(
+            "KICK SUBSCRIPTIONS:"
         );
 
         console.log(
@@ -298,75 +402,14 @@ app.get("/test-user", async (req, res) => {
     } catch (error) {
 
         console.error(
-            "USER TEST ERROR:",
+            "SUBSCRIPTIONS ERROR:",
             error
         );
 
         res.status(500).json({
             success: false,
-            message: "User test error"
-        });
-    }
-});
-
-// ===============================
-// PRUEBA DEL ACCESS TOKEN
-// ===============================
-
-app.get("/test-token", async (req, res) => {
-
-    if (!accessToken) {
-
-        return res.status(401).json({
-            success: false,
-            message: "No Kick access token available"
-        });
-    }
-
-    try {
-
-        const response = await fetch(
-            "https://api.kick.com/public/v1/users",
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
-                    "Accept": "application/json"
-                }
-            }
-        );
-
-        const data = await response.json();
-
-        console.log(
-            "KICK API TEST STATUS:",
-            response.status
-        );
-
-        if (!response.ok) {
-
-            return res
-                .status(response.status)
-                .json(data);
-        }
-
-        res.status(200).json({
-            success: true,
-            message: "KICK ACCESS TOKEN FUNCIONA"
-        });
-
-    } catch (error) {
-
-        console.error(
-            "TOKEN TEST ERROR:",
-            error
-        );
-
-        res.status(500).json({
-            success: false,
-            message: "Token test error"
+            message:
+                "Subscriptions error"
         });
     }
 });
@@ -377,9 +420,10 @@ app.get("/test-token", async (req, res) => {
 
 app.post("/webhook", (req, res) => {
 
-    console.log(
-        "WEBHOOK RECIBIDO:"
-    );
+    console.log("");
+    console.log("===============================");
+    console.log("🔥 WEBHOOK RECIBIDO DE KICK");
+    console.log("===============================");
 
     console.log(
         JSON.stringify(
@@ -388,6 +432,9 @@ app.post("/webhook", (req, res) => {
             2
         )
     );
+
+    console.log("===============================");
+    console.log("");
 
     res.status(200).json({
         success: true
@@ -406,6 +453,11 @@ app.listen(
         console.log(
             "Webhook server running on port " +
             PORT
+        );
+
+        console.log(
+            "Webhook URL:",
+            WEBHOOK_URL
         );
     }
 );
