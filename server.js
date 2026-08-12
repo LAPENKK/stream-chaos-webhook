@@ -16,13 +16,17 @@ const REDIRECT_URI =
 const WEBHOOK_URL =
     "https://stream-chaos-webhook.onrender.com/webhook";
 
+// ID confirmado de tu cuenta Kick
+const BROADCASTER_USER_ID = 123713183;
+
 let accessToken = null;
 let oauthState = null;
 let codeVerifier = null;
 
-// ===============================
+
+// =====================================================
 // PÁGINA PRINCIPAL
-// ===============================
+// =====================================================
 
 app.get("/", (req, res) => {
     res.status(200).send(
@@ -30,9 +34,10 @@ app.get("/", (req, res) => {
     );
 });
 
-// ===============================
+
+// =====================================================
 // INICIAR OAUTH
-// ===============================
+// =====================================================
 
 app.get("/oauth/start", (req, res) => {
 
@@ -67,9 +72,10 @@ app.get("/oauth/start", (req, res) => {
     res.redirect(authorizationUrl);
 });
 
-// ===============================
+
+// =====================================================
 // CALLBACK OAUTH
-// ===============================
+// =====================================================
 
 app.get("/oauth/callback", async (req, res) => {
 
@@ -98,7 +104,8 @@ app.get("/oauth/callback", async (req, res) => {
                 headers: {
                     "Content-Type":
                         "application/x-www-form-urlencoded",
-                    "Accept": "application/json"
+                    "Accept":
+                        "application/json"
                 },
 
                 body: new URLSearchParams({
@@ -106,22 +113,32 @@ app.get("/oauth/callback", async (req, res) => {
                     client_id: CLIENT_ID,
                     client_secret: CLIENT_SECRET,
                     redirect_uri: REDIRECT_URI,
-                    grant_type: "authorization_code",
-                    code_verifier: codeVerifier
+                    grant_type:
+                        "authorization_code",
+                    code_verifier:
+                        codeVerifier
                 }).toString()
             }
         );
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
-        console.log("OAUTH TOKEN RESPONSE:");
+        console.log(
+            "OAUTH TOKEN RESPONSE:"
+        );
+
         console.log(
             JSON.stringify(
                 {
-                    token_type: data.token_type,
-                    expires_in: data.expires_in,
-                    scope: data.scope,
-                    error: data.error,
+                    token_type:
+                        data.token_type,
+                    expires_in:
+                        data.expires_in,
+                    scope:
+                        data.scope,
+                    error:
+                        data.error,
                     error_description:
                         data.error_description
                 },
@@ -131,15 +148,22 @@ app.get("/oauth/callback", async (req, res) => {
         );
 
         if (!response.ok) {
+
             return res
                 .status(response.status)
                 .json(data);
         }
 
-        accessToken = data.access_token;
+        accessToken =
+            data.access_token;
 
         console.log(
             "KICK ACCESS TOKEN RECIBIDO CORRECTAMENTE"
+        );
+
+        console.log(
+            "BROADCASTER USER ID:",
+            BROADCASTER_USER_ID
         );
 
         res.status(200).send(
@@ -159,92 +183,66 @@ app.get("/oauth/callback", async (req, res) => {
     }
 });
 
-// ===============================
-// OBTENER USUARIO KICK
-// ===============================
 
-async function getKickUser() {
-
-    if (!accessToken) {
-        throw new Error(
-            "No Kick access token available"
-        );
-    }
-
-    const response = await fetch(
-        "https://api.kick.com/public/v1/users",
-        {
-            method: "GET",
-
-            headers: {
-                "Authorization":
-                    "Bearer " + accessToken,
-
-                "Accept":
-                    "application/json"
-            }
-        }
-    );
-
-    const result = await response.json();
-
-    console.log("KICK USER RESPONSE:");
-    console.log(
-        JSON.stringify(
-            result,
-            null,
-            2
-        )
-    );
-
-    if (!response.ok) {
-        throw new Error(
-            JSON.stringify(result)
-        );
-    }
-
-    /*
-     * Kick devuelve:
-     *
-     * {
-     *   "data": {
-     *      "data": [
-     *          {
-     *             "user_id": 123...
-     *          }
-     *      ]
-     *   }
-     * }
-     */
-
-    if (
-        !result.data ||
-        !Array.isArray(result.data.data) ||
-        result.data.data.length === 0
-    ) {
-        throw new Error(
-            "Kick user data not found"
-        );
-    }
-
-    return result.data.data[0];
-}
-
-// ===============================
-// TEST USER
-// ===============================
+// =====================================================
+// TEST DEL USUARIO
+// =====================================================
 
 app.get("/test-user", async (req, res) => {
 
+    if (!accessToken) {
+
+        return res.status(401).json({
+            success: false,
+            message:
+                "No Kick access token available"
+        });
+    }
+
     try {
 
-        const user = await getKickUser();
+        const response = await fetch(
+            "https://api.kick.com/public/v1/users",
+            {
+                method: "GET",
+
+                headers: {
+                    "Authorization":
+                        "Bearer " + accessToken,
+
+                    "Accept":
+                        "application/json"
+                }
+            }
+        );
+
+        const data =
+            await response.json();
+
+        console.log(
+            "KICK USER RESPONSE:"
+        );
+
+        console.log(
+            JSON.stringify(
+                data,
+                null,
+                2
+            )
+        );
+
+        if (!response.ok) {
+
+            return res
+                .status(response.status)
+                .json(data);
+        }
 
         res.status(200).json({
             success: true,
-            user_id: user.user_id,
-            name: user.name,
-            email: user.email
+            broadcaster_user_id:
+                BROADCASTER_USER_ID,
+            data: data
         });
 
     } catch (error) {
@@ -256,27 +254,37 @@ app.get("/test-user", async (req, res) => {
 
         res.status(500).json({
             success: false,
-            message: error.message
+            message:
+                error.message
         });
     }
 });
 
-// ===============================
+
+// =====================================================
 // SUSCRIBIR CHAT
-// ===============================
+// =====================================================
 
 app.get("/subscribe-chat", async (req, res) => {
 
+    if (!accessToken) {
+
+        return res.status(401).json({
+            success: false,
+            message:
+                "No Kick access token available"
+        });
+    }
+
     try {
 
-        const user = await getKickUser();
-
-        const broadcasterUserId =
-            user.user_id;
+        console.log(
+            "Creando suscripción de chat..."
+        );
 
         console.log(
-            "BROADCASTER USER ID:",
-            broadcasterUserId
+            "Broadcaster:",
+            BROADCASTER_USER_ID
         );
 
         const response = await fetch(
@@ -296,6 +304,10 @@ app.get("/subscribe-chat", async (req, res) => {
                 },
 
                 body: JSON.stringify({
+
+                    broadcaster_user_id:
+                        BROADCASTER_USER_ID,
+
                     events: [
                         {
                             name:
@@ -305,12 +317,14 @@ app.get("/subscribe-chat", async (req, res) => {
                         }
                     ],
 
-                    method: "webhook"
+                    method:
+                        "webhook"
                 })
             }
         );
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
         console.log(
             "KICK SUBSCRIPTION RESPONSE:"
@@ -332,12 +346,17 @@ app.get("/subscribe-chat", async (req, res) => {
         }
 
         res.status(200).json({
+
             success: true,
+
             broadcaster_user_id:
-                broadcasterUserId,
+                BROADCASTER_USER_ID,
+
             message:
-                "CHAT EVENT SUBSCRIBED",
-            data: data
+                "CHAT EVENT SUBSCRIPTION CREATED",
+
+            data:
+                data
         });
 
     } catch (error) {
@@ -348,29 +367,32 @@ app.get("/subscribe-chat", async (req, res) => {
         );
 
         res.status(500).json({
+
             success: false,
+
             message:
                 error.message
         });
     }
 });
 
-// ===============================
+
+// =====================================================
 // VER SUSCRIPCIONES
-// ===============================
+// =====================================================
 
 app.get("/subscriptions", async (req, res) => {
 
+    if (!accessToken) {
+
+        return res.status(401).json({
+            success: false,
+            message:
+                "No Kick access token available"
+        });
+    }
+
     try {
-
-        if (!accessToken) {
-
-            return res.status(401).json({
-                success: false,
-                message:
-                    "No Kick access token available"
-            });
-        }
 
         const response = await fetch(
             "https://api.kick.com/public/v1/events/subscriptions",
@@ -390,9 +412,21 @@ app.get("/subscriptions", async (req, res) => {
         const data =
             await response.json();
 
-        res.status(response.status).json(
-            data
+        console.log(
+            "KICK SUBSCRIPTIONS:"
         );
+
+        console.log(
+            JSON.stringify(
+                data,
+                null,
+                2
+            )
+        );
+
+        res.status(
+            response.status
+        ).json(data);
 
     } catch (error) {
 
@@ -409,16 +443,23 @@ app.get("/subscriptions", async (req, res) => {
     }
 });
 
-// ===============================
+
+// =====================================================
 // WEBHOOK
-// ===============================
+// =====================================================
 
 app.post("/webhook", (req, res) => {
 
     console.log("");
-    console.log("===============================");
-    console.log("🔥 WEBHOOK RECIBIDO DE KICK");
-    console.log("===============================");
+    console.log(
+        "================================"
+    );
+    console.log(
+        "🔥 WEBHOOK RECIBIDO DE KICK"
+    );
+    console.log(
+        "================================"
+    );
 
     console.log(
         JSON.stringify(
@@ -428,7 +469,9 @@ app.post("/webhook", (req, res) => {
         )
     );
 
-    console.log("===============================");
+    console.log(
+        "================================"
+    );
     console.log("");
 
     res.status(200).json({
@@ -436,9 +479,10 @@ app.post("/webhook", (req, res) => {
     });
 });
 
-// ===============================
+
+// =====================================================
 // SERVIDOR
-// ===============================
+// =====================================================
 
 app.listen(
     PORT,
@@ -453,6 +497,11 @@ app.listen(
         console.log(
             "Webhook URL:",
             WEBHOOK_URL
+        );
+
+        console.log(
+            "Broadcaster User ID:",
+            BROADCASTER_USER_ID
         );
     }
 );
