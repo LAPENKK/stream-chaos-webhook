@@ -7,7 +7,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-    res.status(200).send("STREAM CHAOS ENGINE — WEBHOOK ONLINE");
+    res.status(200).send("STREAM CHAOS ENGINE - WEBHOOK ONLINE");
 });
 
 app.post("/webhook", (req, res) => {
@@ -20,5 +20,5 @@ app.post("/webhook", (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(Webhook server running on port ${PORT});
+    console.log("Webhook server running on port " + PORT);
 });
