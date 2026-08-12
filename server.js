@@ -19,7 +19,6 @@ const WEBHOOK_URL =
 let accessToken = null;
 let oauthState = null;
 let codeVerifier = null;
-let broadcasterUserId = null;
 
 // ===============================
 // PÁGINA PRINCIPAL
@@ -116,62 +115,31 @@ app.get("/oauth/callback", async (req, res) => {
         const data = await response.json();
 
         console.log("OAUTH TOKEN RESPONSE:");
-        console.log(JSON.stringify({
-            token_type: data.token_type,
-            expires_in: data.expires_in,
-            scope: data.scope,
-            error: data.error,
-            error_description: data.error_description
-        }, null, 2));
+        console.log(
+            JSON.stringify(
+                {
+                    token_type: data.token_type,
+                    expires_in: data.expires_in,
+                    scope: data.scope,
+                    error: data.error,
+                    error_description:
+                        data.error_description
+                },
+                null,
+                2
+            )
+        );
 
         if (!response.ok) {
-            return res.status(response.status).json(data);
+            return res
+                .status(response.status)
+                .json(data);
         }
 
         accessToken = data.access_token;
 
         console.log(
             "KICK ACCESS TOKEN RECIBIDO CORRECTAMENTE"
-        );
-
-        // Obtener información del usuario
-        const userResponse = await fetch(
-            "https://api.kick.com/public/v1/users",
-            {
-                method: "GET",
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
-                    "Accept": "application/json"
-                }
-            }
-        );
-
-        const userData = await userResponse.json();
-
-        console.log("KICK USER RESPONSE:");
-        console.log(
-            JSON.stringify(userData, null, 2)
-        );
-
-        if (!userResponse.ok) {
-            return res.status(userResponse.status).json(
-                userData
-            );
-        }
-
-        if (
-            userData.data &&
-            userData.data.data &&
-            userData.data.data.length > 0
-        ) {
-            broadcasterUserId =
-                userData.data.data[0].user_id;
-        }
-
-        console.log(
-            "BROADCASTER USER ID:",
-            broadcasterUserId
         );
 
         res.status(200).send(
@@ -192,42 +160,91 @@ app.get("/oauth/callback", async (req, res) => {
 });
 
 // ===============================
-// INFORMACIÓN DEL USUARIO
+// OBTENER USUARIO KICK
+// ===============================
+
+async function getKickUser() {
+
+    if (!accessToken) {
+        throw new Error(
+            "No Kick access token available"
+        );
+    }
+
+    const response = await fetch(
+        "https://api.kick.com/public/v1/users",
+        {
+            method: "GET",
+
+            headers: {
+                "Authorization":
+                    "Bearer " + accessToken,
+
+                "Accept":
+                    "application/json"
+            }
+        }
+    );
+
+    const result = await response.json();
+
+    console.log("KICK USER RESPONSE:");
+    console.log(
+        JSON.stringify(
+            result,
+            null,
+            2
+        )
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            JSON.stringify(result)
+        );
+    }
+
+    /*
+     * Kick devuelve:
+     *
+     * {
+     *   "data": {
+     *      "data": [
+     *          {
+     *             "user_id": 123...
+     *          }
+     *      ]
+     *   }
+     * }
+     */
+
+    if (
+        !result.data ||
+        !Array.isArray(result.data.data) ||
+        result.data.data.length === 0
+    ) {
+        throw new Error(
+            "Kick user data not found"
+        );
+    }
+
+    return result.data.data[0];
+}
+
+// ===============================
+// TEST USER
 // ===============================
 
 app.get("/test-user", async (req, res) => {
 
-    if (!accessToken) {
-        return res.status(401).json({
-            success: false,
-            message: "No Kick access token available"
-        });
-    }
-
     try {
 
-        const response = await fetch(
-            "https://api.kick.com/public/v1/users",
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
-                    "Accept": "application/json"
-                }
-            }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            return res.status(response.status).json(data);
-        }
+        const user = await getKickUser();
 
         res.status(200).json({
             success: true,
-            data: data
+            user_id: user.user_id,
+            name: user.name,
+            email: user.email
         });
 
     } catch (error) {
@@ -239,32 +256,28 @@ app.get("/test-user", async (req, res) => {
 
         res.status(500).json({
             success: false,
-            message: "User test error"
+            message: error.message
         });
     }
 });
 
 // ===============================
-// SUSCRIBIRSE A CHAT.MESSAGE.SENT
+// SUSCRIBIR CHAT
 // ===============================
 
 app.get("/subscribe-chat", async (req, res) => {
 
-    if (!accessToken) {
-        return res.status(401).json({
-            success: false,
-            message: "No Kick access token available"
-        });
-    }
-
-    if (!broadcasterUserId) {
-        return res.status(400).json({
-            success: false,
-            message: "Broadcaster user ID not available"
-        });
-    }
-
     try {
+
+        const user = await getKickUser();
+
+        const broadcasterUserId =
+            user.user_id;
+
+        console.log(
+            "BROADCASTER USER ID:",
+            broadcasterUserId
+        );
 
         const response = await fetch(
             "https://api.kick.com/public/v1/events/subscriptions",
@@ -283,13 +296,11 @@ app.get("/subscribe-chat", async (req, res) => {
                 },
 
                 body: JSON.stringify({
-                    broadcaster_user_id:
-                        broadcasterUserId,
-
                     events: [
                         {
                             name:
                                 "chat.message.sent",
+
                             version: 1
                         }
                     ],
@@ -322,8 +333,10 @@ app.get("/subscribe-chat", async (req, res) => {
 
         res.status(200).json({
             success: true,
+            broadcaster_user_id:
+                broadcasterUserId,
             message:
-                "CHAT EVENT SUBSCRIPTION REQUEST SENT",
+                "CHAT EVENT SUBSCRIBED",
             data: data
         });
 
@@ -337,26 +350,27 @@ app.get("/subscribe-chat", async (req, res) => {
         res.status(500).json({
             success: false,
             message:
-                "Subscription error"
+                error.message
         });
     }
 });
 
 // ===============================
-// VERIFICAR SUSCRIPCIONES
+// VER SUSCRIPCIONES
 // ===============================
 
 app.get("/subscriptions", async (req, res) => {
 
-    if (!accessToken) {
-        return res.status(401).json({
-            success: false,
-            message:
-                "No Kick access token available"
-        });
-    }
-
     try {
+
+        if (!accessToken) {
+
+            return res.status(401).json({
+                success: false,
+                message:
+                    "No Kick access token available"
+            });
+        }
 
         const response = await fetch(
             "https://api.kick.com/public/v1/events/subscriptions",
@@ -373,31 +387,12 @@ app.get("/subscriptions", async (req, res) => {
             }
         );
 
-        const data = await response.json();
+        const data =
+            await response.json();
 
-        console.log(
-            "KICK SUBSCRIPTIONS:"
+        res.status(response.status).json(
+            data
         );
-
-        console.log(
-            JSON.stringify(
-                data,
-                null,
-                2
-            )
-        );
-
-        if (!response.ok) {
-
-            return res
-                .status(response.status)
-                .json(data);
-        }
-
-        res.status(200).json({
-            success: true,
-            data: data
-        });
 
     } catch (error) {
 
@@ -409,7 +404,7 @@ app.get("/subscriptions", async (req, res) => {
         res.status(500).json({
             success: false,
             message:
-                "Subscriptions error"
+                error.message
         });
     }
 });
