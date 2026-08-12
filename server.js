@@ -19,9 +19,16 @@ const WEBHOOK_URL =
 // ID confirmado de tu cuenta Kick
 const BROADCASTER_USER_ID = 123713183;
 
+// =====================================================
+// ESTADO
+// =====================================================
+
 let accessToken = null;
 let oauthState = null;
 let codeVerifier = null;
+
+// Cola de eventos para Stream Chaos Engine
+const eventQueue = [];
 
 
 // =====================================================
@@ -185,7 +192,7 @@ app.get("/oauth/callback", async (req, res) => {
 
 
 // =====================================================
-// TEST DEL USUARIO
+// TEST USER
 // =====================================================
 
 app.get("/test-user", async (req, res) => {
@@ -231,18 +238,17 @@ app.get("/test-user", async (req, res) => {
             )
         );
 
-        if (!response.ok) {
+        res.status(
+            response.status
+        ).json({
+            success:
+                response.ok,
 
-            return res
-                .status(response.status)
-                .json(data);
-        }
-
-        res.status(200).json({
-            success: true,
             broadcaster_user_id:
                 BROADCASTER_USER_ID,
-            data: data
+
+            data:
+                data
         });
 
     } catch (error) {
@@ -412,18 +418,6 @@ app.get("/subscriptions", async (req, res) => {
         const data =
             await response.json();
 
-        console.log(
-            "KICK SUBSCRIPTIONS:"
-        );
-
-        console.log(
-            JSON.stringify(
-                data,
-                null,
-                2
-            )
-        );
-
         res.status(
             response.status
         ).json(data);
@@ -445,7 +439,7 @@ app.get("/subscriptions", async (req, res) => {
 
 
 // =====================================================
-// WEBHOOK
+// WEBHOOK DE KICK
 // =====================================================
 
 app.post("/webhook", (req, res) => {
@@ -454,9 +448,11 @@ app.post("/webhook", (req, res) => {
     console.log(
         "================================"
     );
+
     console.log(
         "🔥 WEBHOOK RECIBIDO DE KICK"
     );
+
     console.log(
         "================================"
     );
@@ -472,10 +468,161 @@ app.post("/webhook", (req, res) => {
     console.log(
         "================================"
     );
-    console.log("");
+
+    // =================================================
+    // CONVERTIR EVENTO KICK A EVENTO STREAM CHAOS
+    // =================================================
+
+    const body = req.body;
+
+    const content =
+        body.content ||
+        body.message?.content ||
+        "";
+
+    if (content) {
+
+        console.log(
+            "CHAT:",
+            content
+        );
+
+        // ---------------------------------------------
+        // COMANDOS DE PRUEBA
+        // ---------------------------------------------
+
+        const normalized =
+            content
+                .trim()
+                .toLowerCase();
+
+        let chaosEvent = null;
+
+        if (
+            normalized === "!flash" ||
+            normalized === "flash"
+        ) {
+
+            chaosEvent = "Flash";
+
+        } else if (
+            normalized === "!freeze3" ||
+            normalized === "freeze3"
+        ) {
+
+            chaosEvent = "Freeze3";
+
+        } else if (
+            normalized === "!freeze5" ||
+            normalized === "freeze5"
+        ) {
+
+            chaosEvent = "Freeze5";
+
+        } else if (
+            normalized === "!freeze10" ||
+            normalized === "freeze10"
+        ) {
+
+            chaosEvent = "Freeze10";
+
+        } else if (
+            normalized === "!drop" ||
+            normalized === "drop"
+        ) {
+
+            chaosEvent = "DropWeapon";
+        }
+
+        // ---------------------------------------------
+        // AGREGAR A COLA
+        // ---------------------------------------------
+
+        if (chaosEvent) {
+
+            const event = {
+                type:
+                    chaosEvent,
+
+                source:
+                    "Kick",
+
+                content:
+                    content,
+
+                createdAt:
+                    new Date().toISOString()
+            };
+
+            eventQueue.push(event);
+
+            console.log(
+                "🔥 STREAM CHAOS EVENT:",
+                JSON.stringify(
+                    event,
+                    null,
+                    2
+                )
+            );
+        }
+    }
 
     res.status(200).json({
         success: true
+    });
+});
+
+
+// =====================================================
+// EVENTOS PARA STREAM CHAOS ENGINE
+// =====================================================
+
+app.get("/events", (req, res) => {
+
+    if (eventQueue.length === 0) {
+
+        return res.status(204).send();
+    }
+
+    const event =
+        eventQueue.shift();
+
+    console.log(
+        "📤 ENVIANDO EVENTO A STREAM CHAOS:",
+        JSON.stringify(
+            event,
+            null,
+            2
+        )
+    );
+
+    res.status(200).json(
+        event
+    );
+});
+
+
+// =====================================================
+// ESTADO
+// =====================================================
+
+app.get("/status", (req, res) => {
+
+    res.status(200).json({
+
+        online: true,
+
+        kickAuthorized:
+            accessToken !== null,
+
+        broadcasterUserId:
+            BROADCASTER_USER_ID,
+
+        pendingEvents:
+            eventQueue.length,
+
+        webhook:
+            WEBHOOK_URL
     });
 });
 
@@ -497,6 +644,11 @@ app.listen(
         console.log(
             "Webhook URL:",
             WEBHOOK_URL
+        );
+
+        console.log(
+            "Events URL:",
+            "https://stream-chaos-webhook.onrender.com/events"
         );
 
         console.log(
