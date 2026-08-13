@@ -72,7 +72,9 @@ app.get("/oauth/start", (req, res) => {
         "https://id.kick.com/oauth/authorize?" +
         params.toString();
 
-    console.log("Iniciando OAuth de Kick...");
+    console.log(
+        "Iniciando OAuth de Kick..."
+    );
 
     res.redirect(authorizationUrl);
 });
@@ -87,12 +89,14 @@ app.get("/oauth/callback", async (req, res) => {
     const state = req.query.state;
 
     if (!code) {
+
         return res.status(400).send(
             "No authorization code received"
         );
     }
 
     if (!state || state !== oauthState) {
+
         return res.status(400).send(
             "Invalid OAuth state"
         );
@@ -108,6 +112,7 @@ app.get("/oauth/callback", async (req, res) => {
                 headers: {
                     "Content-Type":
                         "application/x-www-form-urlencoded",
+
                     "Accept":
                         "application/json"
                 },
@@ -137,12 +142,16 @@ app.get("/oauth/callback", async (req, res) => {
                 {
                     token_type:
                         data.token_type,
+
                     expires_in:
                         data.expires_in,
+
                     scope:
                         data.scope,
+
                     error:
                         data.error,
+
                     error_description:
                         data.error_description
                 },
@@ -237,6 +246,7 @@ app.get("/test-user", async (req, res) => {
         res.status(
             response.status
         ).json({
+
             success:
                 response.ok,
 
@@ -255,7 +265,9 @@ app.get("/test-user", async (req, res) => {
         );
 
         res.status(500).json({
+
             success: false,
+
             message:
                 error.message
         });
@@ -424,7 +436,9 @@ app.get("/subscriptions", async (req, res) => {
         );
 
         res.status(500).json({
+
             success: false,
+
             message:
                 error.message
         });
@@ -438,6 +452,7 @@ app.get("/subscriptions", async (req, res) => {
 app.post("/webhook", (req, res) => {
 
     console.log("");
+
     console.log(
         "================================"
     );
@@ -482,6 +497,9 @@ app.post("/webhook", (req, res) => {
 
         // ---------------------------------------------
         // COMANDOS
+        //
+        // IMPORTANTE:
+        // TODOS DEBEN LLEVAR !
         // ---------------------------------------------
 
         const normalized =
@@ -491,45 +509,45 @@ app.post("/webhook", (req, res) => {
 
         let chaosEvent = null;
 
-        if (
-            normalized === "!flash" ||
-            normalized === "flash"
-        ) {
+        // GLOBAL — FLASH
+
+        if (normalized === "!flash") {
 
             chaosEvent = "Flash";
 
-        } else if (
-            normalized === "!freeze3" ||
-            normalized === "freeze3"
-        ) {
+        // GLOBAL — FREEZE WASD 3s
+
+        } else if (normalized === "!freeze3") {
 
             chaosEvent = "Freeze3";
 
-        } else if (
-            normalized === "!freeze5" ||
-            normalized === "freeze5"
-        ) {
+        // GLOBAL — FREEZE WASD 5s
+
+        } else if (normalized === "!freeze5") {
 
             chaosEvent = "Freeze5";
 
-        } else if (
-            normalized === "!freeze10" ||
-            normalized === "freeze10"
-        ) {
+        // GLOBAL — FREEZE WASD 10s
+
+        } else if (normalized === "!freeze10") {
 
             chaosEvent = "Freeze10";
 
-        } else if (
-            normalized === "!drop" ||
-            normalized === "drop"
-        ) {
+        // GLOBAL — FREEZE TECLADO COMPLETO 10s
+
+        } else if (normalized === "!keyboard10") {
+
+            chaosEvent = "FreezeKeyboard10";
+
+        // CS2 — DROP
+
+        } else if (normalized === "!drop") {
 
             chaosEvent = "DropWeapon";
 
-        } else if (
-            normalized === "!reload" ||
-            normalized === "reload"
-        ) {
+        // CS2 — RELOAD
+
+        } else if (normalized === "!reload") {
 
             chaosEvent = "ReloadWeapon";
         }
@@ -541,6 +559,7 @@ app.post("/webhook", (req, res) => {
         if (chaosEvent) {
 
             const event = {
+
                 type:
                     chaosEvent,
 
