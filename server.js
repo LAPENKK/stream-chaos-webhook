@@ -27,14 +27,28 @@ let accessToken = null;
 let oauthState = null;
 let codeVerifier = null;
 
-// Cola de eventos para Stream Chaos Engine
+// =====================================================
+// COLA DE EVENTOS
+// =====================================================
+
 const eventQueue = [];
+
+// =====================================================
+// EVENTO ACTUALMENTE EN PROCESAMIENTO
+// =====================================================
+
+let inFlightEvent = null;
+
+// Tiempo máximo que un evento puede estar reservado
+// antes de volver automáticamente a la cola.
+const EVENT_LEASE_TIME_MS = 30000;
 
 // =====================================================
 // PÁGINA PRINCIPAL
 // =====================================================
 
 app.get("/", (req, res) => {
+
     res.status(200).send(
         "STREAM CHAOS ENGINE - WEBHOOK ONLINE"
     );
@@ -59,13 +73,26 @@ app.get("/oauth/start", (req, res) => {
             .digest("base64url");
 
     const params = new URLSearchParams({
+
         response_type: "code",
-        client_id: CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        scope: "user:read events:subscribe",
-        code_challenge: codeChallenge,
-        code_challenge_method: "S256",
-        state: oauthState
+
+        client_id:
+            CLIENT_ID,
+
+        redirect_uri:
+            REDIRECT_URI,
+
+        scope:
+            "user:read events:subscribe",
+
+        code_challenge:
+            codeChallenge,
+
+        code_challenge_method:
+            "S256",
+
+        state:
+            oauthState
     });
 
     const authorizationUrl =
@@ -76,7 +103,9 @@ app.get("/oauth/start", (req, res) => {
         "Iniciando OAuth de Kick..."
     );
 
-    res.redirect(authorizationUrl);
+    res.redirect(
+        authorizationUrl
+    );
 });
 
 // =====================================================
@@ -85,8 +114,11 @@ app.get("/oauth/start", (req, res) => {
 
 app.get("/oauth/callback", async (req, res) => {
 
-    const code = req.query.code;
-    const state = req.query.state;
+    const code =
+        req.query.code;
+
+    const state =
+        req.query.state;
 
     if (!code) {
 
@@ -95,7 +127,8 @@ app.get("/oauth/callback", async (req, res) => {
         );
     }
 
-    if (!state || state !== oauthState) {
+    if (!state ||
+        state !== oauthState) {
 
         return res.status(400).send(
             "Invalid OAuth state"
@@ -104,31 +137,44 @@ app.get("/oauth/callback", async (req, res) => {
 
     try {
 
-        const response = await fetch(
-            "https://id.kick.com/oauth/token",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://id.kick.com/oauth/token",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Content-Type":
-                        "application/x-www-form-urlencoded",
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
 
-                    "Accept":
-                        "application/json"
-                },
+                        "Accept":
+                            "application/json"
+                    },
 
-                body: new URLSearchParams({
-                    code: code,
-                    client_id: CLIENT_ID,
-                    client_secret: CLIENT_SECRET,
-                    redirect_uri: REDIRECT_URI,
-                    grant_type:
-                        "authorization_code",
-                    code_verifier:
-                        codeVerifier
-                }).toString()
-            }
-        );
+                    body:
+                        new URLSearchParams({
+
+                            code:
+                                code,
+
+                            client_id:
+                                CLIENT_ID,
+
+                            client_secret:
+                                CLIENT_SECRET,
+
+                            redirect_uri:
+                                REDIRECT_URI,
+
+                            grant_type:
+                                "authorization_code",
+
+                            code_verifier:
+                                codeVerifier
+
+                        }).toString()
+                }
+            );
 
         const data =
             await response.json();
@@ -183,7 +229,8 @@ app.get("/oauth/callback", async (req, res) => {
             "STREAM CHAOS ENGINE - KICK AUTORIZADO CORRECTAMENTE"
         );
 
-    } catch (error) {
+    }
+    catch (error) {
 
         console.error(
             "OAuth error:",
@@ -205,7 +252,10 @@ app.get("/test-user", async (req, res) => {
     if (!accessToken) {
 
         return res.status(401).json({
-            success: false,
+
+            success:
+                false,
+
             message:
                 "No Kick access token available"
         });
@@ -213,20 +263,23 @@ app.get("/test-user", async (req, res) => {
 
     try {
 
-        const response = await fetch(
-            "https://api.kick.com/public/v1/users",
-            {
-                method: "GET",
+        const response =
+            await fetch(
+                "https://api.kick.com/public/v1/users",
+                {
+                    method: "GET",
 
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
+                    headers: {
 
-                    "Accept":
-                        "application/json"
+                        "Authorization":
+                            "Bearer " +
+                            accessToken,
+
+                        "Accept":
+                            "application/json"
+                    }
                 }
-            }
-        );
+            );
 
         const data =
             await response.json();
@@ -257,7 +310,8 @@ app.get("/test-user", async (req, res) => {
                 data
         });
 
-    } catch (error) {
+    }
+    catch (error) {
 
         console.error(
             "USER TEST ERROR:",
@@ -266,7 +320,8 @@ app.get("/test-user", async (req, res) => {
 
         res.status(500).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 error.message
@@ -283,7 +338,10 @@ app.get("/subscribe-chat", async (req, res) => {
     if (!accessToken) {
 
         return res.status(401).json({
-            success: false,
+
+            success:
+                false,
+
             message:
                 "No Kick access token available"
         });
@@ -300,41 +358,46 @@ app.get("/subscribe-chat", async (req, res) => {
             BROADCASTER_USER_ID
         );
 
-        const response = await fetch(
-            "https://api.kick.com/public/v1/events/subscriptions",
-            {
-                method: "POST",
+        const response =
+            await fetch(
+                "https://api.kick.com/public/v1/events/subscriptions",
+                {
+                    method: "POST",
 
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
+                    headers: {
 
-                    "Content-Type":
-                        "application/json",
+                        "Authorization":
+                            "Bearer " +
+                            accessToken,
 
-                    "Accept":
-                        "application/json"
-                },
+                        "Content-Type":
+                            "application/json",
 
-                body: JSON.stringify({
+                        "Accept":
+                            "application/json"
+                    },
 
-                    broadcaster_user_id:
-                        BROADCASTER_USER_ID,
+                    body:
+                        JSON.stringify({
 
-                    events: [
-                        {
-                            name:
-                                "chat.message.sent",
+                            broadcaster_user_id:
+                                BROADCASTER_USER_ID,
 
-                            version: 1
-                        }
-                    ],
+                            events: [
+                                {
+                                    name:
+                                        "chat.message.sent",
 
-                    method:
-                        "webhook"
-                })
-            }
-        );
+                                    version:
+                                        1
+                                }
+                            ],
+
+                            method:
+                                "webhook"
+                        })
+                }
+            );
 
         const data =
             await response.json();
@@ -360,7 +423,8 @@ app.get("/subscribe-chat", async (req, res) => {
 
         res.status(200).json({
 
-            success: true,
+            success:
+                true,
 
             broadcaster_user_id:
                 BROADCASTER_USER_ID,
@@ -372,7 +436,8 @@ app.get("/subscribe-chat", async (req, res) => {
                 data
         });
 
-    } catch (error) {
+    }
+    catch (error) {
 
         console.error(
             "SUBSCRIPTION ERROR:",
@@ -381,7 +446,8 @@ app.get("/subscribe-chat", async (req, res) => {
 
         res.status(500).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 error.message
@@ -398,7 +464,10 @@ app.get("/subscriptions", async (req, res) => {
     if (!accessToken) {
 
         return res.status(401).json({
-            success: false,
+
+            success:
+                false,
+
             message:
                 "No Kick access token available"
         });
@@ -406,20 +475,23 @@ app.get("/subscriptions", async (req, res) => {
 
     try {
 
-        const response = await fetch(
-            "https://api.kick.com/public/v1/events/subscriptions",
-            {
-                method: "GET",
+        const response =
+            await fetch(
+                "https://api.kick.com/public/v1/events/subscriptions",
+                {
+                    method: "GET",
 
-                headers: {
-                    "Authorization":
-                        "Bearer " + accessToken,
+                    headers: {
 
-                    "Accept":
-                        "application/json"
+                        "Authorization":
+                            "Bearer " +
+                            accessToken,
+
+                        "Accept":
+                            "application/json"
+                    }
                 }
-            }
-        );
+            );
 
         const data =
             await response.json();
@@ -428,7 +500,8 @@ app.get("/subscriptions", async (req, res) => {
             response.status
         ).json(data);
 
-    } catch (error) {
+    }
+    catch (error) {
 
         console.error(
             "SUBSCRIPTIONS ERROR:",
@@ -437,7 +510,8 @@ app.get("/subscriptions", async (req, res) => {
 
         res.status(500).json({
 
-            success: false,
+            success:
+                false,
 
             message:
                 error.message
@@ -477,11 +551,8 @@ app.post("/webhook", (req, res) => {
         "================================"
     );
 
-    // =================================================
-    // CONVERTIR EVENTO KICK A EVENTO STREAM CHAOS
-    // =================================================
-
-    const body = req.body;
+    const body =
+        req.body;
 
     const content =
         body.content ||
@@ -495,70 +566,94 @@ app.post("/webhook", (req, res) => {
             content
         );
 
-        // ---------------------------------------------
-        // COMANDOS
-        //
-        // IMPORTANTE:
-        // TODOS DEBEN LLEVAR !
-        // ---------------------------------------------
-
         const normalized =
             content
                 .trim()
                 .toLowerCase();
 
-        let chaosEvent = null;
+        let chaosEvent =
+            null;
 
+        // =================================================
         // GLOBAL — FLASH
+        // =================================================
 
         if (normalized === "!flash") {
 
-            chaosEvent = "Flash";
-
-        // GLOBAL — FREEZE WASD 3s
-
-        } else if (normalized === "!freeze3") {
-
-            chaosEvent = "Freeze3";
-
-        // GLOBAL — FREEZE WASD 5s
-
-        } else if (normalized === "!freeze5") {
-
-            chaosEvent = "Freeze5";
-
-        // GLOBAL — FREEZE WASD 10s
-
-        } else if (normalized === "!freeze10") {
-
-            chaosEvent = "Freeze10";
-
-        // GLOBAL — FREEZE TECLADO COMPLETO 10s
-
-        } else if (normalized === "!keyboard10") {
-
-            chaosEvent = "FreezeKeyboard10";
-
-        // CS2 — DROP
-
-        } else if (normalized === "!drop") {
-
-            chaosEvent = "DropWeapon";
-
-        // CS2 — RELOAD
-
-        } else if (normalized === "!reload") {
-
-            chaosEvent = "ReloadWeapon";
+            chaosEvent =
+                "Flash";
         }
 
-        // ---------------------------------------------
+        // =================================================
+        // GLOBAL — FREEZE WASD 3s
+        // =================================================
+
+        else if (normalized === "!freeze3") {
+
+            chaosEvent =
+                "Freeze3";
+        }
+
+        // =================================================
+        // GLOBAL — FREEZE WASD 5s
+        // =================================================
+
+        else if (normalized === "!freeze5") {
+
+            chaosEvent =
+                "Freeze5";
+        }
+
+        // =================================================
+        // GLOBAL — FREEZE WASD 10s
+        // =================================================
+
+        else if (normalized === "!freeze10") {
+
+            chaosEvent =
+                "Freeze10";
+        }
+
+        // =================================================
+        // GLOBAL — FREEZE TECLADO COMPLETO 10s
+        // =================================================
+
+        else if (normalized === "!keyboard10") {
+
+            chaosEvent =
+                "FreezeKeyboard10";
+        }
+
+        // =================================================
+        // CS2 — DROP
+        // =================================================
+
+        else if (normalized === "!drop") {
+
+            chaosEvent =
+                "DropWeapon";
+        }
+
+        // =================================================
+        // CS2 — RELOAD
+        // =================================================
+
+        else if (normalized === "!reload") {
+
+            chaosEvent =
+                "ReloadWeapon";
+        }
+
+        // =================================================
         // AGREGAR A COLA
-        // ---------------------------------------------
+        // =================================================
 
         if (chaosEvent) {
 
             const event = {
+
+                id:
+                    crypto.randomUUID(),
 
                 type:
                     chaosEvent,
@@ -573,40 +668,126 @@ app.post("/webhook", (req, res) => {
                     new Date().toISOString()
             };
 
-            eventQueue.push(event);
+            eventQueue.push(
+                event
+            );
 
             console.log(
-                "🔥 STREAM CHAOS EVENT:",
+                "🔥 STREAM CHAOS EVENT AGREGADO A COLA:"
+            );
+
+            console.log(
                 JSON.stringify(
                     event,
                     null,
                     2
                 )
             );
+
+            console.log(
+                "📦 EVENTOS PENDIENTES:",
+                eventQueue.length
+            );
         }
     }
 
     res.status(200).json({
-        success: true
+
+        success:
+            true
     });
 });
 
 // =====================================================
-// EVENTOS PARA STREAM CHAOS ENGINE
+// OBTENER SIGUIENTE EVENTO
 // =====================================================
 
 app.get("/events", (req, res) => {
 
+    // =================================================
+    // SI HAY EVENTO EN PROCESAMIENTO
+    // =================================================
+
+    if (inFlightEvent) {
+
+        const elapsed =
+            Date.now() -
+            inFlightEvent.reservedAt;
+
+        // =============================================
+        // EL LEASE EXPIRO
+        // =============================================
+
+        if (elapsed >=
+            EVENT_LEASE_TIME_MS) {
+
+            console.log(
+                "⚠️ EVENTO EN PROCESAMIENTO EXPIRO."
+            );
+
+            console.log(
+                "↩️ DEVOLVIENDO EVENTO A LA COLA:"
+            );
+
+            console.log(
+                JSON.stringify(
+                    inFlightEvent.event,
+                    null,
+                    2
+                )
+            );
+
+            eventQueue.unshift(
+                inFlightEvent.event
+            );
+
+            inFlightEvent =
+                null;
+        }
+        else {
+
+            // =========================================
+            // TODAVÍA ESTÁ SIENDO PROCESADO
+            // =========================================
+
+            return res
+                .status(204)
+                .send();
+        }
+    }
+
+    // =================================================
+    // NO HAY EVENTOS
+    // =================================================
+
     if (eventQueue.length === 0) {
 
-        return res.status(204).send();
+        return res
+            .status(204)
+            .send();
     }
+
+    // =================================================
+    // RESERVAR EVENTO
+    // =================================================
 
     const event =
         eventQueue.shift();
 
+    inFlightEvent = {
+
+        event:
+            event,
+
+        reservedAt:
+            Date.now()
+    };
+
     console.log(
-        "📤 ENVIANDO EVENTO A STREAM CHAOS:",
+        "📤 EVENTO ENTREGADO A STREAM CHAOS:"
+    );
+
+    console.log(
         JSON.stringify(
             event,
             null,
@@ -614,9 +795,104 @@ app.get("/events", (req, res) => {
         )
     );
 
+    console.log(
+        "🔒 EVENTO RESERVADO — ESPERANDO ACK"
+    );
+
     res.status(200).json(
         event
     );
+});
+
+// =====================================================
+// CONFIRMAR EVENTO EJECUTADO
+// =====================================================
+
+app.post("/events/ack", (req, res) => {
+
+    const eventId =
+        req.body?.id;
+
+    if (!eventId) {
+
+        return res.status(400).json({
+
+            success:
+                false,
+
+            message:
+                "Event id is required"
+        });
+    }
+
+    // =================================================
+    // NO HAY EVENTO EN PROCESAMIENTO
+    // =================================================
+
+    if (!inFlightEvent) {
+
+        return res.status(404).json({
+
+            success:
+                false,
+
+            message:
+                "No event is currently in flight"
+        });
+    }
+
+    // =================================================
+    // ID INCORRECTO
+    // =================================================
+
+    if (inFlightEvent.event.id !==
+        eventId) {
+
+        return res.status(409).json({
+
+            success:
+                false,
+
+            message:
+                "Event id does not match current in-flight event"
+        });
+    }
+
+    // =================================================
+    // CONFIRMAR
+    // =================================================
+
+    console.log(
+        "✅ EVENTO CONFIRMADO:"
+    );
+
+    console.log(
+        JSON.stringify(
+            inFlightEvent.event,
+            null,
+            2
+        )
+    );
+
+    inFlightEvent =
+        null;
+
+    console.log(
+        "📦 EVENTOS PENDIENTES:",
+        eventQueue.length
+    );
+
+    res.status(200).json({
+
+        success:
+            true,
+
+        message:
+            "Event acknowledged",
+
+        eventId:
+            eventId
+    });
 });
 
 // =====================================================
@@ -627,7 +903,8 @@ app.get("/status", (req, res) => {
 
     res.status(200).json({
 
-        online: true,
+        online:
+            true,
 
         kickAuthorized:
             accessToken !== null,
@@ -637,6 +914,14 @@ app.get("/status", (req, res) => {
 
         pendingEvents:
             eventQueue.length,
+
+        inFlight:
+            inFlightEvent !== null,
+
+        inFlightEventId:
+            inFlightEvent
+                ? inFlightEvent.event.id
+                : null,
 
         webhook:
             WEBHOOK_URL
@@ -665,6 +950,11 @@ app.listen(
         console.log(
             "Events URL:",
             "https://stream-chaos-webhook.onrender.com/events"
+        );
+
+        console.log(
+            "Events ACK URL:",
+            "https://stream-chaos-webhook.onrender.com/events/ack"
         );
 
         console.log(
